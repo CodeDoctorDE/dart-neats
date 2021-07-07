@@ -14,15 +14,13 @@
 
 import 'dart:async' show Future;
 
-import 'package:analyzer/dart/element/element.dart'
-    show ClassElement, ElementKind, ExecutableElement;
+import 'package:analyzer/dart/element/element.dart' show ClassElement, ElementKind, ExecutableElement;
 import 'package:analyzer/dart/element/type.dart' show ParameterizedType;
 import 'package:build/build.dart' show BuildStep, log;
 import 'package:code_builder/code_builder.dart' as code;
 import 'package:http_methods/http_methods.dart' show isHttpMethod;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf_router/shelf_router.dart' as shelf_router;
-
 // ignore: implementation_imports
 import 'package:shelf_router/src/router_entry.dart' show RouterEntry;
 import 'package:source_gen/source_gen.dart' as g;
@@ -30,6 +28,7 @@ import 'package:source_gen/source_gen.dart' as g;
 // Type checkers that we need later
 const _routeType = g.TypeChecker.fromRuntime(shelf_router.Route);
 const _routerType = g.TypeChecker.fromRuntime(shelf_router.Router);
+const _handlerType = g.TypeChecker.fromRuntime(shelf.Handler);
 const _responseType = g.TypeChecker.fromRuntime(shelf.Response);
 const _requestType = g.TypeChecker.fromRuntime(shelf.Request);
 const _stringType = g.TypeChecker.fromRuntime(String);
@@ -43,9 +42,7 @@ class _Handler {
 }
 
 /// Find members of a class annotated with [shelf_router.Route].
-List<ExecutableElement> getAnnotatedElementsOrderBySourceOffset(
-        ClassElement cls) =>
-    <ExecutableElement>[
+List<ExecutableElement> getAnnotatedElementsOrderBySourceOffset(ClassElement cls) => <ExecutableElement>[
       ...cls.methods.where(_routeType.hasAnnotationOfExact),
       ...cls.accessors.where(_routeType.hasAnnotationOfExact)
     ]..sort((a, b) => (a.nameOffset).compareTo(b.nameOffset));
@@ -67,8 +64,7 @@ code.Method _buildRouterMethod({
         ..returns = code.refer('Router')
         ..body = code.Block(
           (b) => b
-            ..addExpression(
-                code.refer('Router').newInstance([]).assignFinal('router'))
+            ..addExpression(code.refer('Router').newInstance([]).assignFinal('router'))
             ..statements.addAll(handlers.map((h) => _buildAddHandlerCode(
                   router: code.refer('router'),
                   service: code.refer('service'),
@@ -145,9 +141,7 @@ class ShelfRouterGenerator extends g.Generator {
           classElement: e.key,
           handlers: e.value,
         ));
-    return code.Library((b) => b.body.addAll(methods))
-        .accept(code.DartEmitter())
-        .toString();
+    return code.Library((b) => b.body.addAll(methods)).accept(code.DartEmitter()).toString();
   }
 }
 
@@ -155,8 +149,7 @@ class ShelfRouterGenerator extends g.Generator {
 /// shelf request handler.
 void _typeCheckHandler(_Handler h) {
   if (h.element.isStatic) {
-    throw g.InvalidGenerationSourceError(
-        'The shelf_router.Route annotation cannot be used on static members',
+    throw g.InvalidGenerationSourceError('The shelf_router.Route annotation cannot be used on static members',
         element: h.element);
   }
 
@@ -266,8 +259,7 @@ void _typeCheckHandler(_Handler h) {
 /// annotate a getter that returns a [shelf_router.Router].
 void _typeCheckMount(_Handler h) {
   if (h.element.isStatic) {
-    throw g.InvalidGenerationSourceError(
-        'The shelf_router.Route annotation cannot be used on static members',
+    throw g.InvalidGenerationSourceError('The shelf_router.Route annotation cannot be used on static members',
         element: h.element);
   }
 
@@ -293,10 +285,11 @@ void _typeCheckMount(_Handler h) {
         element: h.element);
   }
 
-  if (!_routerType.isAssignableFromType(h.element.returnType)) {
+  if (!_handlerType.isAssignableFromType(h.element.returnType) &&
+      !_routerType.isAssignableFromType(h.element.returnType)) {
     throw g.InvalidGenerationSourceError(
         'The shelf_router.Route.mount annotation can only be used on a '
-        'getter that returns shelf_router.Router',
+        'getter that returns shelf.Handler or shelf_router.Router',
         element: h.element);
   }
 }
